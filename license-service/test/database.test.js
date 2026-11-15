@@ -20,6 +20,8 @@ test("database setup ensures the license lookup and audit history indexes", asyn
   const indexes = await ensureDatabaseIndexes(db);
   assert.equal(indexes.licenseIndexes.length, 4);
   assert.equal(indexes.auditIndexes.length, 3);
+  assert.equal(indexes.challengeIndexes.length, 2);
   assert.equal(created.get("licenses").find(index => index.key.keyHash).unique, true);
   assert.ok(created.get("audit_logs").some(index => index.key.licenseId && index.key.createdAt === -1));
+  assert.equal(created.get("device_challenges").find(index => index.key.expiresAt).expireAfterSeconds, 0);
 });

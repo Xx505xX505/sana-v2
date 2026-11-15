@@ -1,42 +1,47 @@
 # SANA License Service
 
-Node.js API for one-device SANA licenses. The source tree contains no production credentials.
+Node.js/Express API for one-device SANA licenses. The repository contains no production credentials. See the root `CLIENT-INTEGRATION.md` for the end-client token and device-key contract.
 
-## Local development
+## Local setup and tests
 
-Requirements: Node.js 20 or later and a reachable MongoDB deployment. Install packages with `npm ci`, copy `.env.example` to an ignored local `.env`, and configure the values below. `npm run check` validates JavaScript syntax and `npm test` runs the HTTP integration suite against an isolated in-memory MongoDB test double. Tests do not contact Atlas.
+Requirements: Node.js 20+ and MongoDB for running the service. Run `npm ci`, copy `.env.example` to a local ignored `.env`, and provide local test/development values. `npm run check` checks JavaScript syntax; `npm test` runs the HTTP suite against an isolated in-memory MongoDB test double. The test suite does not connect to Atlas or change production data.
 
-To test Atlas locally without putting its URI in the chat or a project file, run `.\scripts\check-atlas.ps1` in PowerShell. It asks for the URI in a hidden prompt, exposes it only to the child process temporarily, connects with TLS, pings the selected database, ensures the required indexes, and reports index names without printing the URI. It creates/ensures these idempotent indexes: unique `licenses.keyHash`, `licenses.createdAt`, `licenses.status + createdAt`, `audit_logs.createdAt + action`, and `audit_logs.licenseId + createdAt`. The service runs the same index check at startup.
+To test a separately authorized Atlas test database, use `.\scripts\check-atlas.ps1`. It prompts for the URI without echoing it, uses it only in the child process, pings the selected database, and ensures the idempotent indexes. Do not use a production URI for this check. Startup also creates the indexes below.
 
-## Required server secrets
+## Configuration and secrets
 
-- `MONGODB_URI`: Atlas connection string, stored only in the host secret manager or local ignored `.env`.
-- `MONGODB_DB`: database name, for example `sana_licenses`.
-- `ADMIN_API_KEY`: random value of at least 32 bytes. Keep it only in the manager operator's password manager/runtime session and the service secret manager.
-- `ACTIVATION_PRIVATE_KEY_B64`: base64 encoded Ed25519 PKCS#8 private key. Store only in the service secret manager. The private signing key must never be distributed with the Manager or end-user application.
-- `CORS_ORIGIN`: exact comma-separated origins allowed to call the service from the Manager, including the Tauri origin used by the packaged app.
-- `PORT`: hosting provider port, if required.
+- `MONGODB_URI`: MongoDB URI in the host's secret manager or local ignored `.env`.
+- `MONGODB_DB`: database name; defaults to `sana_licenses`.
+- `ADMIN_API_KEY`: random secret of at least 32 bytes. Keep it in the API secret manager and the operator's memory-only Manager session.
+- `ACTIVATION_PRIVATE_KEY_B64`: base64 PKCS#8 Ed25519 private key, held only by the API secret manager.
+- `CORS_ORIGIN`: comma-separated exact allowed browser origins, including the packaged Tauri origin `http://tauri.localhost`.
+- `PORT`: host-provided HTTP port; defaults to 8080.
 
-The service exposes the matching Ed25519 public key at `GET /v1/keys/activation`. A product client can embed that public key and verify the compact EdDSA token offline until its `exp` time. Tokens last seven days; this is the maximum revocation/offline window. Online verification at `POST /v1/licenses/verify` also checks current database status and device binding. The SANA end-user client is outside this repository, so its offline token verification and license-gated startup are not implemented here.
+Never put a real credential in Git, the Manager package, API URL, logs, or chat. Use a least-privilege database user and restrict Atlas network access to the backend host. Render config in the repository specifies `plan: free`, `autoDeployTrigger: off`, and secrets with `sync: false`; no deployment is performed by this repository.
 
-Never put a real secret in Git, in the desktop bundle, in the API URL field, or in a chat. Rotate any credential that has ever been pasted into a chat or committed. Use a least-privilege Atlas database user and restrict Atlas network access to the backend host where possible.
+## Client endpoints
 
-## API
+- `GET /health`: MongoDB ping/readiness.
+- `GET /v1/keys/activation`: EdDSA algorithm, PEM public key, and base64url SPKI public key. Pin the public key in a trusted product release; never fetch and trust an arbitrary signing key at runtime.
+- `POST /v1/licenses/challenge`: `{ "licenseKey": "SANA-…", "devicePublicKey": "<base64url SPKI DER>" }`; returns a single-use challenge id, nonce, exact UTF-8 signing message, and expiration.
+- `POST /v1/licenses/activate`: `{ "licenseKey": "SANA-…", "devicePublicKey": "…", "challengeId": "…", "proof": "<Ed25519 signature, base64url>" }`; binds the license to the public-key fingerprint and returns a signed activation token. The key is stored as SHA-256 only.
+- `POST /v1/licenses/verify/challenge`: `{ "activationToken": "…", "devicePublicKey": "…" }`; validates current status/binding and issues a fresh proof challenge.
+- `POST /v1/licenses/verify`: `{ "activationToken": "…", "devicePublicKey": "…", "challengeId": "…", "proof": "…" }`; verifies device possession, current status, and one-use challenge, then returns a refreshed token.
 
-- `GET /health`: MongoDB readiness check.
-- `GET /v1/keys/activation`: Ed25519 public key and algorithm.
-- `POST /v1/licenses/activate`: `{ "licenseKey": "SANA-...", "deviceId": "<64 lowercase hex chars>" }`; returns an EdDSA JWT. An atomic update binds an unassigned key or reactivates it on the same device.
-- `POST /v1/licenses/verify`: `{ "activationToken": "...", "deviceId": "..." }`; validates signature, expiry, device, and live license status.
-- `POST /v1/admin/licenses`: Bearer admin key and `{ "count": 1 }`, with a count of 1–50. Raw keys are returned only once; only SHA-256 key hashes are stored.
-- `GET /v1/admin/licenses?q=&status=`: latest 500 records, with status and device filters/search.
-- `POST /v1/admin/licenses/:id/revoke`: revokes an active license.
-- `POST /v1/admin/licenses/:id/transfer`: requires `{ "approved": true, "reason": "..." }` and clears the current binding.
-- `GET /v1/admin/audit?limit=100`: most recent audited administrative and activation events.
+Challenges expire after five minutes and are one-use. The EdDSA token contains issuer, audience, product/version, license id, device-key fingerprint, issue time, and expiry; token lifetime is at most seven days. Clients may validate a pinned-key token offline only until its signed expiration. This is software-key proof, not hardware attestation; an attacker able to run as the same Windows user may invoke DPAPI/key-use operations. Reinstalling the app for the same Windows user on the same installation preserves the `%LOCALAPPDATA%` DPAPI identity when its file remains. Loss of the Windows profile/key store requires administrator-approved transfer.
 
-Activation and management APIs are rate-limited. CORS is exact-origin allowlisted. Helmet security headers, strict request size limits, generic server errors, and timing-safe admin-key comparison are enabled. License changes and their audit entries use MongoDB transactions, so the service requires a transaction-capable MongoDB deployment such as an Atlas replica set. Logs do not contain request bodies or API keys. Audit records include action, license id, timestamp, actor class, and an HMAC-protected IP identifier.
+## Manager/admin endpoints
 
-## Deployment status
+- `POST /v1/admin/licenses`: Bearer admin key and `{ "count": 1 }`, integer 1–50. Raw keys are returned once; only hashes are persisted.
+- `GET /v1/admin/licenses?q=&status=`: latest 500 licenses, searchable by id or device fingerprint, optionally filtered by `active`/`revoked`.
+- `POST /v1/admin/licenses/:id/revoke`: revoke an active license.
+- `POST /v1/admin/licenses/:id/transfer`: requires `{ "approved": true, "reason": "..." }`; clears an existing binding and writes the reason to audit.
+- `GET /v1/admin/audit?limit=100`: most recent 1–500 audit events.
 
-The root `render.yaml` prepares one Node web service rooted at this directory, uses `npm ci`/`npm start`, configures `/health`, pins the plan to `free`, disables automatic deploys, and marks `MONGODB_URI`, `ADMIN_API_KEY`, and `ACTIVATION_PRIVATE_KEY_B64` as secrets to enter in the Render Dashboard. It does not declare or create any MongoDB resource. The free plan prevents an accidental paid allocation; select a production plan only after separate approval. Before syncing the Blueprint, configure the existing Atlas cluster's network allowlist for the selected Render service. Keep the Atlas URI and signing/admin keys in Render's environment-secret settings, never in the Blueprint or Git.
+Admin routes require `Authorization: Bearer <ADMIN_API_KEY>`. The Manager keeps the admin key in memory for the current app session only; it stores only the validated API URL in local storage. Do not ship an admin key in the desktop bundle.
 
-This repository is prepared for deployment but is not deployed. A live HTTPS service, Atlas connection, production secrets, backups, alerting, and end-user client integration still require operator setup and approval. Do not claim production readiness until a real deployment and live Atlas end-to-end tests have passed. No production credentials are committed or included in the License Manager.
+## Storage, consistency, and protections
+
+Indexes: unique `licenses.keyHash`, `licenses.createdAt`, `licenses.status + createdAt`, `audit_logs.createdAt + action`, `audit_logs.licenseId + createdAt`, and TTL `device_challenges.expiresAt`. License binding, challenge consumption, issue/revoke/transfer, and corresponding audit writes use MongoDB transactions. A transaction-capable MongoDB deployment (such as an Atlas replica set) is required. Challenge creation is transactional with its audit event. Rate limits cover client activation/verification routes and admin routes separately. Express uses Helmet, strict JSON size limit, exact-origin CORS, generic internal errors, and timing-safe admin key comparison. Request bodies, license keys, tokens, signatures, and secrets are not logged.
+
+The test double exercises API behavior and simulated database failures, but does not prove Atlas availability, transaction behavior in a live cluster, or Render HTTPS deployment. This service is not production-ready until an authorized isolated staging database and deployed HTTPS API pass end-to-end tests.

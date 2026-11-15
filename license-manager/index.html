@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>SANA License Manager</title>
+  <style>
+    :root{font-family:"Segoe UI",Tahoma,sans-serif;color:#e8eee7;background:#0b1510;font-synthesis:none}
+    *{box-sizing:border-box}body{margin:0;padding:28px;background:radial-gradient(ellipse at 15% 0%,#244b34,transparent 45%),#0b1510}
+    main{max-width:1180px;margin:auto}.brand{color:#d8b66d;letter-spacing:4px;font-weight:800;font-size:24px}
+    h1{font-size:26px;margin:20px 0 5px}.muted{color:#9aab9d}.panel{background:#14231b;border:1px solid #2b4434;border-radius:14px;padding:20px;margin-top:16px}
+    input,select,button{font:inherit;border-radius:9px;padding:11px;border:1px solid #385440;background:#0d1912;color:#e8eee7}
+    input,select{width:100%;margin:6px 0 12px}button{background:#315b3b;border:0;cursor:pointer;margin:3px}button:hover{background:#42764e}button:disabled{opacity:.5;cursor:wait}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.row>*{flex:1;min-width:180px}.status{font-weight:700}.online{color:#72dda0}.offline{color:#ff9184}
+    table{width:100%;border-collapse:collapse;margin-top:12px}td,th{text-align:right;padding:10px;border-bottom:1px solid #2b4434;font-size:13px;vertical-align:top}
+    .table-wrap{overflow:auto}.key{direction:ltr;text-align:left;font-family:Consolas,monospace;background:#0a130e;padding:12px;border-radius:8px;margin:8px 0;word-break:break-all}
+    .device{direction:ltr;text-align:left;font:12px Consolas,monospace;word-break:break-all;max-width:250px}.badge{border-radius:999px;padding:3px 9px;background:#263c2c}
+    #message{white-space:pre-wrap;color:#d8b66d;margin-top:14px;min-height:1.5em}.secret-hint{font-size:13px}.danger{background:#7b3029}.danger:hover{background:#984037}
+    @media(max-width:650px){body{padding:14px}.panel{padding:14px}th,td{padding:7px}.row>*{min-width:140px}}
+  </style>
+</head>
+<body><main>
+  <div class="brand">SANA</div>
+  <h1>إدارة تراخيص SANA</h1>
+  <div class="muted">إصدار المفاتيح، متابعة التفعيل، وإدارة النقل والإلغاء.</div>
+
+  <section class="panel">
+    <h2>اتصال الخادم</h2>
+    <div class="row">
+      <label>رابط License API<input id="api" type="url" placeholder="https://licenses.example.com" autocomplete="url"></label>
+      <label>مفتاح الإدارة<input id="admin" type="password" autocomplete="off" placeholder="ألصق المفتاح للاستخدام في هذه الجلسة فقط"></label>
+    </div>
+    <button id="connect">حفظ الرابط والاتصال</button>
+    <button id="health">فحص حالة الخادم</button>
+    <button id="disconnect">إنهاء جلسة الإدارة</button>
+    <span id="server-status" class="status muted">لم يتم الفحص</span>
+    <p class="muted secret-hint">يُحفظ رابط HTTPS محليًا على هذا الجهاز. لا يُحفظ مفتاح الإدارة؛ يُستخدم في الذاكرة حتى إغلاق التطبيق فقط.</p>
+  </section>
+
+  <section class="panel">
+    <h2>إصدار مفاتيح</h2>
+    <div class="row"><label>العدد (1–50)<input id="count" type="number" min="1" max="50" value="1"></label><button id="issue">إصدار المفاتيح</button></div>
+    <div id="issued" aria-live="polite"></div>
+  </section>
+
+  <section class="panel">
+    <h2>التراخيص</h2>
+    <div class="row">
+      <label>بحث<input id="search" type="search" placeholder="معرّف الترخيص أو بصمة الجهاز"></label>
+      <label>الحالة<select id="status"><option value="">كل الحالات</option><option value="active">نشط</option><option value="revoked">ملغى</option></select></label>
+      <button id="refresh">تحديث القائمة</button>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>الحالة</th><th>تاريخ الإصدار</th><th>تاريخ التفعيل</th><th>الجهاز المرتبط (بصمة)</th><th>الإجراءات</th></tr></thead><tbody id="licenses"><tr><td colspan="5" class="muted">اتصل بالخادم لعرض التراخيص.</td></tr></tbody></table></div>
+  </section>
+
+  <section class="panel">
+    <h2>سجل العمليات</h2>
+    <div class="table-wrap"><table><thead><tr><th>العملية</th><th>معرّف الترخيص</th><th>التاريخ</th><th>التفاصيل</th></tr></thead><tbody id="audit"><tr><td colspan="4" class="muted">حدّث السجل بعد الاتصال.</td></tr></tbody></table></div>
+  </section>
+  <div id="message" role="status" aria-live="polite"></div>
+</main><script src="./manager.js"></script></body></html>

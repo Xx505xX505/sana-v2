@@ -1,0 +1,16 @@
+[package]
+name = "sana-license-manager"
+version = "1.0.0"
+description = "SANA License Manager"
+authors = ["SANA"]
+edition = "2021"
+
+[lib]
+name = "sana_license_manager_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

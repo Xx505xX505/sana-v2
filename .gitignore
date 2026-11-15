@@ -1,0 +1,11 @@
+node_modules/
+**/node_modules/
+**/target/
+/license-manager/src-tauri/gen/schemas/
+dist/
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
