@@ -4,7 +4,7 @@ Node.js/Express API for one-device SANA licenses. The repository contains no pro
 
 ## Local setup and tests
 
-Requirements: Node.js 20+ and MongoDB for running the service. Run `npm ci`, copy `.env.example` to a local ignored `.env`, and provide local test/development values. `npm run check` checks JavaScript syntax; `npm test` runs the HTTP suite against an isolated in-memory MongoDB test double. The test suite does not connect to Atlas or change production data.
+Requirements: Node.js 20+ and MongoDB for running the service. Run `npm ci`, copy `.env.example` to a local ignored `.env`, and provide local test/development values. `npm run check` checks JavaScript syntax; `npm test` runs the HTTP suite against an isolated in-memory MongoDB test double. The separate MongoDB integration test runs only when both `MONGODB_TEST_URI` and `MONGODB_TEST_DB` are set. The DB name must start with `sana_licenses_test_`, the URI path must match it, and the test URI must not equal `MONGODB_URI`; when `MONGODB_URI` is present, matching credentials and database names are rejected. Use a dedicated transaction-capable replica set and a test-only database user. If these variables are absent, the integration test is reported as skipped and no MongoDB URI is inferred from the service configuration.
 
 To test a separately authorized Atlas test database, use `.\scripts\check-atlas.ps1`. It prompts for the URI without echoing it, uses it only in the child process, pings the selected database, and ensures the idempotent indexes. Do not use a production URI for this check. Startup also creates the indexes below.
 

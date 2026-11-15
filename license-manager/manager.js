@@ -212,6 +212,7 @@ $("disconnect").addEventListener("click", () => {
   state.admin = "";
   state.licenses = [];
   $("admin").value = "";
+  $("issued").replaceChildren();
   renderLicenses();
   $("audit").replaceChildren();
   setServerStatus(false, "انتهت جلسة الإدارة");
@@ -248,4 +249,9 @@ if (storedApi) {
   try { state.api = validatedApi(storedApi); $("api").value = state.api; }
   catch { localStorage.removeItem("sana-license-api-url"); }
 }
-window.addEventListener("beforeunload", () => { state.admin = ""; });
+function clearSessionSecrets() {
+  state.admin = "";
+  $("issued").replaceChildren();
+}
+window.addEventListener("beforeunload", clearSessionSecrets);
+window.addEventListener("pagehide", clearSessionSecrets);
